@@ -1,0 +1,71 @@
+name: Build
+
+permissions: { }
+
+on:
+  push:
+    branches: ['develop']
+  pull_request:
+    branches: ['develop']
+    types:
+      - opened
+      - ready_for_review
+      - reopened
+      - synchronize
+    paths-ignore:
+      - '.github/**'
+      - 'charts/**'
+      - 'LICENSE'
+      - 'README.md'
+
+jobs:
+
+  Test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - name: Set up Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+        with:
+          go-version: stable
+      - name: Install Dependencies
+        run: go mod download
+      - name: Test
+        run: make test
+
+  Build:
+    needs: ['Test']
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - name: Set up Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+        with:
+          go-version: stable
+      - name: Install Dependencies
+        run: go mod download
+      - name: Build
+        run: make image
+      - name: Scan with Trivy
+        uses: aquasecurity/trivy-action@6e7b7d1fd3e4fef0c5fa8cce1229c54b2c9bd0d8 # v0.24.0
+        with:
+          scan-type: 'image'
+          scanners: 'vuln'
+          image-ref: 'ghcr.io/raft-tech/konfirm/inspections:latest'
+          ignore-unfixed: 'true'
+          limit-severities-for-sarif: true
+          output: 'trivy-results.sarif'
+          format: 'sarif'
+          severity: 'MEDIUM,HIGH,CRITICAL'
+          vuln-type: 'os,library'
+      - name: Upload scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@4dd16135b69a43b6c8efb853346f8437d92d3c93 # v3.26.6
+        with:
+          sarif_file: 'trivy-results.sarif'

@@ -1,0 +1,26 @@
+name: Enhancement
+description: Request an enhancement or new feature
+title: "[Enhancement]: "
+labels: ["enhancement", "triage"]
+assignees:
+  - dagan
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping us make Konfirm better! Your contributions make the community stronger. 💪
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the ask
+      description: What enhancement or new feature would you like to see?
+    validations:
+      required: true
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      description: By submitting this issue, you agree to follow our [Code of Conduct](https://github.com/raft-tech/konfirm/blob/develop/CODE_OF_CONDUCT.md)
+      options:
+        - label: I agree to follow the Konfirm Code of Conduct
+          required: true
