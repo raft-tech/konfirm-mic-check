@@ -44,7 +44,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=edge,branch=feature/initial-application
+            type=edge,branch=develop
       - name: Build and push
         id: docker
         uses: docker/build-push-action/@5cd11c3a4ced054e52742c5fd54dca954e0edd85 #v6.7.0
