@@ -1,0 +1,6 @@
+*.iml
+
+/.github
+/.idea
+/bin
+/inspect

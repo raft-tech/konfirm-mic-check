@@ -1,0 +1,6 @@
+*.iml
+
+/.idea
+/bin
+/cover.out
+/inspect
