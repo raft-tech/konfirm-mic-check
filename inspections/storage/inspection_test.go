@@ -20,52 +20,44 @@ package storage
 import (
 	"context"
 	"flag"
-	"os"
-	"strconv"
-	"strings"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/push"
 	"go.uber.org/zap"
 
+	"github.com/raft-tech/konfirm-inspections/inspections"
+	"github.com/raft-tech/konfirm-inspections/internal/logging"
 	"github.com/raft-tech/konfirm-inspections/pkg/storage"
 	"github.com/raft-tech/konfirm-inspections/pkg/storage/source"
-
-	"github.com/raft-tech/konfirm-inspections/internal/logging"
 )
 
 const (
-	MetricsNamespaceEnv     = "METRICS_NAMESPACE"
-	MetricsSubsystemEnv     = "METRICS_SUBSYSTEM"
-	MetricsJobEnv           = "METRICS_JOB"
-	MetricsInstanceEnv      = "METRICS_INSTANCE"
-	DefaultMetricsNamespace = "konfirm"
-	DefaultMetricsSubsystem = "storage"
-	DefaultMetricsJob       = "konfirm_inspections"
-	VolumeLabel             = "volume"
-	EntryLabel              = "entry"
+	VolumeLabel = "volume"
+	EntryLabel  = "entry"
 )
 
-var logger *zap.Logger
-var pushGatewayAddr string
-var baseDir string
-var maxInstances int
-var scrub bool
-var reads *prometheus.GaugeVec
-var readErrors *prometheus.GaugeVec
-var writes *prometheus.GaugeVec
-var writeErrors *prometheus.GaugeVec
-var availableBytes prometheus.Gauge
-var totalBytes prometheus.Gauge
+var (
+	logger *zap.Logger
+
+	baseDir      string
+	maxInstances int
+	scrub        bool
+
+	metrics        inspections.Metrics
+	reads          *prometheus.GaugeVec
+	readErrors     *prometheus.GaugeVec
+	writes         *prometheus.GaugeVec
+	writeErrors    *prometheus.GaugeVec
+	availableBytes prometheus.Gauge
+	totalBytes     prometheus.Gauge
+)
 
 func init() {
-	logging.RegisterGoFlags(flag.CommandLine)
 	flags := flag.CommandLine
+	inspections.RegisterTestFlags(flags)
 	flags.StringVar(&baseDir, "konfirm.base-dir", "", "set the directory used for storage inspections")
-	flags.StringVar(&pushGatewayAddr, "konfirm.metrics-gateway", "", "enable pushing metrics to the specified gateway")
 	flags.IntVar(&maxInstances, "konfirm.max-instances", 3, "set the maximum number of instances (default is 3)")
 	flags.BoolVar(&scrub, "konfirm.scrub", false, "remove any files in the volume that are not in the index")
 }
@@ -73,12 +65,16 @@ func init() {
 func TestStorage(t *testing.T) {
 
 	logger = logging.NewLogger(GinkgoWriter)
+	ctx, done := context.WithCancel(logging.NewContext(context.Background(), logger.Named("healthz")))
+	defer done()
+	inspections.StartHealthz(ctx)
 	setupMetrics()
 
 	RegisterTestingT(t)
-	Expect(baseDir).To(BeADirectory(), "konfirm.base-dir must be an existing directory")
-
 	RegisterFailHandler(Fail)
+	g := NewGomegaWithT(t)
+	g.Expect(baseDir).To(BeADirectory(), "konfirm.base-dir must be an existing directory")
+
 	suiteCfg, reporterCfg := GinkgoConfiguration()
 	RunSpecs(t, "Storage", suiteCfg, reporterCfg)
 }
@@ -168,60 +164,21 @@ var _ = Describe("Read/Write", func() {
 		if len(args) == 0 {
 			tests = []test{
 				{
-					name:   "512MiB",
-					source: source.New(512 * source.Megabyte),
+					name:   "512Mi",
+					source: source.New(512 * 1024 * 1024),
 				},
 			}
 		} else {
 
 			// Specs are defined in the format NAME:SIZE where SIZE is in the format [N][unit]
-			// N being an integer and unit being one of KiB, MiB, GiB.
-			// For example, Medium:512MiB would create a spec named "Medium" with a 512MiB Source.
+			// N being an integer and unit being one of Ki, Mi, Gi.
+			// For example, Medium:512Mi would create a spec named "Medium" with a 512 mebibyte Source.
 			for i := range args {
-
-				spec := strings.SplitN(args[i], ":", 2)
-				if len(spec) != 2 {
-					msg := "malformed test spec"
-					logger.Warn(msg, zap.String("spec", args[i]))
-					Fail(msg)
-				}
-
-				t := test{
-					name: spec[0],
-				}
-
-				var size, unit string
-				if l := len(spec[1]); l >= 4 {
-					size = spec[1][:l-3]
-					unit = spec[1][l-3:]
+				if t, err := source.NewSpec(args[i], ""); err == nil {
+					tests = append(tests, test{name: t.Name(), source: t.Generate()})
 				} else {
-					msg := "malformed test size"
-					logger.Warn(msg, zap.String("size", unit))
-					Fail(msg)
+					logger.Error("malformed test spec", zap.Error(err))
 				}
-
-				var n int
-				if num, err := strconv.Atoi(size); err == nil {
-					n = num
-				} else {
-					msg := "invalid spec size"
-					logger.Warn(msg, zap.String("size", size))
-					Fail(msg)
-				}
-
-				switch unit {
-				case "KiB":
-					t.source = source.New(n * source.Kilobyte)
-				case "MiB":
-					t.source = source.New(n * source.Megabyte)
-				case "GiB":
-					t.source = source.New(n * source.Gigabyte)
-				default:
-					msg := "invalid source unit"
-					logger.Warn(msg, zap.String("unit", unit))
-					Fail(msg)
-				}
-				tests = append(tests, t)
 			}
 		}
 	})
@@ -230,39 +187,37 @@ var _ = Describe("Read/Write", func() {
 
 func setupMetrics() {
 
-	var namespace = DefaultMetricsNamespace
-	if ns, ok := os.LookupEnv(MetricsNamespaceEnv); ok {
-		namespace = ns
-	}
-
-	var subsystem = DefaultMetricsSubsystem
-	if s, ok := os.LookupEnv(MetricsSubsystemEnv); ok {
-		subsystem = s
-	}
+	metrics = inspections.NewMetrics()
+	const namespace = inspections.MetricsNamespace
+	const subsystem = "storage"
 
 	reads = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Subsystem: subsystem,
 		Name:      "avg_read_duration",
 	}, []string{VolumeLabel, EntryLabel})
+	metrics.Register(reads)
 
 	readErrors = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Subsystem: subsystem,
 		Name:      "read_errors",
 	}, []string{VolumeLabel, EntryLabel})
+	metrics.Register(readErrors)
 
 	writes = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Subsystem: subsystem,
 		Name:      "write_duration",
 	}, []string{VolumeLabel, EntryLabel})
+	metrics.Register(writes)
 
 	writeErrors = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Subsystem: subsystem,
 		Name:      "write_error",
 	}, []string{VolumeLabel, EntryLabel})
+	metrics.Register(writeErrors)
 
 	availableBytes = prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: namespace,
@@ -284,46 +239,11 @@ func setupMetrics() {
 }
 
 var _ = AfterSuite(func(ctx context.Context) {
-
-	svc := strings.TrimSpace(pushGatewayAddr)
-	if svc == "" {
-		return
-	}
-
-	jobName := DefaultMetricsJob
-	if j, ok := os.LookupEnv(MetricsJobEnv); ok {
-		jobName = j
-	}
-
-	instance := "unknown"
-	if i, ok := os.LookupEnv(MetricsInstanceEnv); ok {
-		instance = i
-	} else if host, err := os.Hostname(); err == nil {
-		instance = host
-	}
-
-	logger := logger.With(zap.String("gateway", svc))
-	logger.Debug("initializing metrics gateway", zap.String("job", jobName), zap.String("instance", instance))
-
-	pusher := push.New(svc, jobName)
-	pusher.Grouping("instance", instance)
-
-	pusher.Collector(reads)
-	pusher.Collector(readErrors)
-	pusher.Collector(writes)
-	pusher.Collector(writeErrors)
-
 	if d, e := storage.GetDisk(baseDir); e == nil {
-		pusher.Collector(availableBytes)
 		availableBytes.Set(float64(d.AvailableBytes()))
-		pusher.Collector(totalBytes)
+		metrics.Register(availableBytes)
 		totalBytes.Set(float64(d.TotalBytes()))
+		metrics.Register(totalBytes)
 	}
-
-	logger.Debug("pushing metrics")
-	if err := pusher.PushContext(ctx); err == nil {
-		logger.Info("successfully pushed metrics")
-	} else {
-		logger.Error("error pushing metrics", zap.Error(err))
-	}
+	metrics.Push(ctx)
 })

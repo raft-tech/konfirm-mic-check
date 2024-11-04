@@ -1,6 +1,6 @@
-*.iml
-
-/.github
-/.idea
-/bin
-/inspect
+**/*.iml
+.cache
+.github
+.idea
+bin
+inspect

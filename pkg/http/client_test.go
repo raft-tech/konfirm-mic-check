@@ -15,7 +15,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package mic
+package http
 
 import (
 	"bytes"
@@ -28,27 +28,44 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/raft-tech/konfirm-inspections/internal/logging"
+	"github.com/raft-tech/konfirm-inspections/pkg/storage/source"
 )
 
 var server *http.Server
 
 var _ = Describe("Client", func() {
 
-	var mic Client
+	var client Client
 
 	It("Checks out", func(ctx context.Context) {
 		ctx = logging.NewContext(ctx, logger)
-		Expect(mic.Check(ctx)).To(BeTrue())
+		Expect(client.Check(ctx)).To(BeTrue())
 	})
 
-	It("Replays small tracks", func(ctx context.Context) {
+	It("Replays small messages", func(ctx context.Context) {
 		ctx = logging.NewContext(ctx, logger)
 		buf := bytes.NewBuffer([]byte("All work and no play makes Jack a dull boy. 😎"))
-		Expect(mic.ReplayN(ctx, buf, int64(buf.Len()))).To(BeTrue())
+		Expect(client.ReplayN(ctx, buf, int64(buf.Len()))).To(BeTrue())
+	})
+
+	It("Replays large messages", func(ctx context.Context) {
+		ctx = logging.NewContext(ctx, logger)
+		var size int64 = 128 * 1024 * 1024
+		msg := source.New(size)
+		Expect(client.ReplayN(ctx, msg, int64(size))).To(BeTrue())
+	})
+
+	It("Handles RequestEntityTooLarge errors", func(ctx context.Context) {
+		ctx = logging.NewContext(ctx, logger)
+		var size int64 = 129 * 1024 * 1024
+		msg := source.New(size)
+		ok, err := client.ReplayN(ctx, msg, size)
+		Expect(ok).To(BeFalse())
+		Expect(err).To(MatchError(ExceedsMaxRequestSizeErr))
 	})
 
 	BeforeEach(func() {
-		mic = NewClient(fmt.Sprintf("http://%s", server.Addr), http.DefaultClient)
+		client = NewClient(fmt.Sprintf("http://%s", server.Addr), http.DefaultClient)
 	})
 
 })

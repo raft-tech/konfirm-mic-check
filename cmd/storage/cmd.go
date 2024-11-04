@@ -22,21 +22,21 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strings"
 	"sync"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 
-	"github.com/raft-tech/konfirm-inspections/internal/logging"
-
+	"github.com/raft-tech/konfirm-inspections/inspections"
 	"github.com/raft-tech/konfirm-inspections/internal/cli"
+	"github.com/raft-tech/konfirm-inspections/internal/healthz"
+	"github.com/raft-tech/konfirm-inspections/internal/logging"
 )
 
 var (
-	baseDir        string
-	maxInstances   int
-	metricsGateway string
-	scrub          bool
+	baseDir      string
+	maxInstances int
+	scrub        bool
 )
 
 func New() *cobra.Command {
@@ -51,7 +51,6 @@ func New() *cobra.Command {
 	flags := cmd.PersistentFlags()
 	flags.StringVar(&baseDir, "base-dir", "", "(required) sets the data directory for inspection data")
 	flags.IntVar(&maxInstances, "max-instances", 3, "sets the maximum number of data instances to retain")
-	flags.StringVar(&metricsGateway, "metrics-gateway", "", "enable pushing metrics to the specified gateway")
 	flags.BoolVar(&scrub, "scrub", false, "scrub unindexed files from the volume")
 
 	return cmd
@@ -59,32 +58,34 @@ func New() *cobra.Command {
 
 func storage(cmd *cobra.Command, cargs []string) error {
 
-	args := []string{
+	logger := logging.NewLogger(cmd.OutOrStdout())
+
+	// Start health probes if set
+	if addr, _ := cmd.Flags().GetString(healthz.ListenFlag); addr != "" {
+		if probes, err := healthz.ListenAndServe(cmd.Context(), addr, func(err error) {
+			logger.Error("error serving http probes", zap.Error(err))
+		}); err == nil {
+			probes.Ready(true)
+		} else {
+			logger.Error("error starting http probe server", zap.Error(err))
+		}
+	}
+
+	args := inspections.BuildInspectorArgs(cmd.Flags())
+	args = append(args,
 		"--konfirm.base-dir", baseDir,
 		"--konfirm.max-instances", fmt.Sprintf("%d", maxInstances),
-	}
+	)
 
 	if scrub {
 		args = append(args, "--konfirm.scrub")
-	}
-
-	if s := strings.TrimSpace(metricsGateway); s != "" {
-		args = append(args, "--konfirm.metrics-gateway", s)
-	}
-
-	if str, err := cmd.Flags().GetString(logging.LogLevelFlag); err == nil {
-		args = append(args, "--"+logging.TestLogLevelFlag, str)
-	}
-
-	if str, err := cmd.Flags().GetString(logging.LogFormatFlag); err == nil {
-		args = append(args, "--"+logging.TestLogFormatFlag, str)
 	}
 
 	var inspection *exec.Cmd
 	if i, e := exec.LookPath("konfirm-storage"); e == nil {
 		inspection = exec.CommandContext(cmd.Context(), i, append(args, cargs...)...)
 	} else {
-		return cli.ErrorF(1, "storage inspection not found")
+		return cli.ErrorF(1, "storage inspector not found")
 	}
 
 	var pout io.ReadCloser
