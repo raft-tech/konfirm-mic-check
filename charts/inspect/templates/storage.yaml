@@ -72,7 +72,7 @@ spec:
                     {{- end }}
                     - storage
                     - --base-dir=/konfirm/data
-                    - --max-instances={{ .Values.inspections.storage.tests.maxInstances}}
+                    - --max-instances={{ .Values.inspections.storage.tests.maxInstances }}
                     {{- toYaml .Values.inspections.storage.tests.specs | nindent 20 }}
                   imagePullPolicy: {{ .Values.image.pullPolicy }}
                   securityContext:
