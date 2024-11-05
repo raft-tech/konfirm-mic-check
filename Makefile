@@ -41,7 +41,8 @@ kind-load: image $(CACHE)
 MONITORING_GATEWAY ?= gateway-prometheus-pushgateway.monitoring:9091
 INSTALL_NAMESPACE ?= konfirm-inspections
 install:
-	helm upgrade --install --create-namespace -n $(INSTALL_NAMESPACE) inspect ./charts/inspect --set monitoring.gateway=$(MONITORING_GATEWAY)
+	helm upgrade --install --create-namespace -n $(INSTALL_NAMESPACE) inspect ./charts/inspect \
+		--set monitoring.gateway=$(MONITORING_GATEWAY),inspections.storage.when.cron='* * * * *'
 
 
 .PHONY: inspect

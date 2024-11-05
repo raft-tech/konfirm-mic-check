@@ -1,3 +1,4 @@
+{{- if .Values.inspections.http.enabled }}
 apiVersion: konfirm.teamraft.com/v1beta1
 kind: TestSuite
 metadata:
@@ -207,6 +208,7 @@ spec:
               tolerations:
                       {{- toYaml . | nindent 16 }}
                     {{- end }}
+{{- end }}
 ---
 {{- if .Values.inspections.http.serviceAccount.create }}
 apiVersion: v1

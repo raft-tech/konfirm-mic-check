@@ -40,6 +40,14 @@ We truncate at 63 chars in the same manner as inspect.fullname above.
 {{- end }}
 
 {{/*
+Create a fully qualified storage inspection name.
+We truncate at 63 chars in the same manner as inspect.fullname above.
+*/}}
+{{- define "inspect.storageName" }}
+{{- printf "%s-%s" (include "inspect.fullname" . | trunc 55 | trimSuffix "-") "storage" }}
+{{- end }}
+
+{{/*
 Create chart name and version as used by the chart label.
 */}}
 {{- define "inspect.chart" -}}

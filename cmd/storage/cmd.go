@@ -42,8 +42,8 @@ var (
 func New() *cobra.Command {
 
 	cmd := &cobra.Command{
-		Use:     "storage [TEST_SPECS]",
-		Short:   "Inspect block storage by performing write and read operations",
+		Use:     "storage --base-dir=/path/to/data/dir [FLAGS] [TEST_SPECS]",
+		Short:   "Inspect filesystem storage by performing write and read operations",
 		Example: "storage small:1KiB medium:128MiB large:2GiB",
 		RunE:    storage,
 	}

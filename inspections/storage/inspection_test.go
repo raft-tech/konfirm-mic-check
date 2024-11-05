@@ -194,7 +194,7 @@ func setupMetrics() {
 	reads = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Subsystem: subsystem,
-		Name:      "avg_read_duration",
+		Name:      "avg_read_duration_ms",
 	}, []string{VolumeLabel, EntryLabel})
 	metrics.Register(reads)
 
@@ -208,7 +208,7 @@ func setupMetrics() {
 	writes = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Subsystem: subsystem,
-		Name:      "write_duration",
+		Name:      "write_duration_ms",
 	}, []string{VolumeLabel, EntryLabel})
 	metrics.Register(writes)
 

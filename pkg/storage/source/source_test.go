@@ -132,7 +132,7 @@ var _ = Describe("Source", func() {
 	})
 })
 
-var _ = FDescribe("SourceSpec", func() {
+var _ = Describe("SourceSpec", func() {
 
 	DescribeTable("Parses specs as expected", func(desc string, size string, expectedName string, expectedSize int64) {
 		spec, err := NewSpec(desc, size)
