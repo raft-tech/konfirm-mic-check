@@ -17,6 +17,7 @@ test: bin/konfirm-storage bin/konfirm-http
 
 .PHONY: clean
 clean:
+	[ ! -d .cache ] || rm -rf .cache
 	[ ! -d bin ] || rm -rf bin
 	[ ! -f cover.out ] || rm cover.out
 	[ ! -f inspect ] || rm inspect

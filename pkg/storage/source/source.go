@@ -90,7 +90,6 @@ type Spec interface {
 }
 
 var InvalidSizeFormatErr = errors.New("sizes must be formated as an integer followed by an optional unit (e.g., 4KiB)")
-var ExceedsMaxSizeErr = errors.New("size exceeds maximum size")
 
 // NewSpec creates a Spec based on the provided description/size. If desc and size are both
 // defined, desc is used as the Spec name and size is parsed to determine the Int and Int64 values.
@@ -99,8 +98,7 @@ var ExceedsMaxSizeErr = errors.New("size exceeds maximum size")
 //
 // Supported size units are the same as resource.Quantity. If no unit is specified, the unit is
 // assumed to be Bytes. InvalidSizeFormatErr is returned if the specified size is not in a
-// recognized format. ExceedsMaxSizeErr is returned if the specified size is greater than the max
-// int64 value when converted to bytes.
+// recognized format.
 //
 // If no error is return, the returned Spec will be valid.
 //
@@ -123,15 +121,11 @@ func NewSpec(desc, size string) (Spec, error) {
 		return nil, errors.Join(InvalidSizeFormatErr, err)
 	}
 
-	if i, ok := qty.AsInt64(); ok {
-		return spec{
-			name: name,
-			desc: desc,
-			size: i,
-		}, nil
-	} else {
-		return nil, ExceedsMaxSizeErr
-	}
+	return spec{
+		name: name,
+		desc: desc,
+		size: qty.Value(),
+	}, nil
 }
 
 type spec struct {
