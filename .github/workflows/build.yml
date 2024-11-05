@@ -42,6 +42,8 @@ jobs:
     permissions:
       contents: read
       security-events: write
+    env:
+      VERSION:
     steps:
       - name: Checkout
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -52,13 +54,13 @@ jobs:
       - name: Install Dependencies
         run: go mod download
       - name: Build
-        run: make image
+        run: VERSION=${{ GITHUB_SHA }} make image
       - name: Scan with Trivy
         uses: aquasecurity/trivy-action@6e7b7d1fd3e4fef0c5fa8cce1229c54b2c9bd0d8 # v0.24.0
         with:
           scan-type: 'image'
           scanners: 'vuln'
-          image-ref: 'ghcr.io/raft-tech/konfirm/inspections:latest'
+          image-ref: 'ghcr.io/raft-tech/konfirm/inspections:${{ env.GITHUB_SHA }}'
           ignore-unfixed: 'true'
           limit-severities-for-sarif: true
           output: 'trivy-results.sarif'
