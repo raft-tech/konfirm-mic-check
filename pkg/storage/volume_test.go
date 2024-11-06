@@ -221,7 +221,7 @@ var _ = Describe("Volumes", func() {
 				f, err := os.OpenFile(path.Join(basePath, instanceName, entry.Path), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
 				Expect(err).NotTo(HaveOccurred())
 				digest := sha256.New()
-				reader := io.TeeReader(source.New(int(entry.Size)), digest)
+				reader := io.TeeReader(source.New(entry.Size), digest)
 				start := time.Now()
 				size, err := f.ReadFrom(reader)
 				t := time.Since(start)

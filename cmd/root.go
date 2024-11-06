@@ -20,10 +20,12 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/raft-tech/konfirm-inspections/cmd/mic"
+	"github.com/raft-tech/konfirm-inspections/cmd/http"
 	"github.com/raft-tech/konfirm-inspections/cmd/storage"
-	"github.com/raft-tech/konfirm-inspections/internal/logging"
+	"github.com/raft-tech/konfirm-inspections/inspections"
 )
+
+var MetricsGateway string
 
 func New() *cobra.Command {
 	root := &cobra.Command{
@@ -31,7 +33,7 @@ func New() *cobra.Command {
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
-	logging.RegisterPFlags(root.PersistentFlags())
-	root.AddCommand(mic.New(), storage.New())
+	inspections.RegisterCmdFlags(root.PersistentFlags())
+	root.AddCommand(http.New(), storage.New())
 	return root
 }

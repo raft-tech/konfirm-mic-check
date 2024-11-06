@@ -19,13 +19,11 @@ package source
 
 import (
 	_ "embed"
+	"errors"
 	"io"
-)
+	"strings"
 
-const (
-	Kilobyte = 1024
-	Megabyte = 1024 * Kilobyte
-	Gigabyte = 1024 * Megabyte
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 var (
@@ -37,24 +35,24 @@ type Source interface {
 	io.Reader
 }
 
-func New(size int) Source {
+func New(size int64) Source {
 	return &source{
 		size: size,
 	}
 }
 
 type source struct {
-	pos  int
+	pos  int64
 	rpos int
-	size int
+	size int64
 }
 
 func (s *source) Read(p []byte) (n int, err error) {
 
 	// Determine the read size
-	n = s.size - s.pos
-	if l := len(p); l < n {
-		n = l
+	n = len(p)
+	if remaining := s.size - s.pos; remaining < int64(n) {
+		n = int(remaining)
 	}
 
 	// Copy from fourKiB
@@ -69,7 +67,7 @@ func (s *source) Read(p []byte) (n int, err error) {
 
 		// Copy to p and update positions
 		m = copy(p[i:], chunk)
-		s.pos += m
+		s.pos += int64(m)
 		i += m
 		if s.rpos += m; s.rpos == len(fourKiB) {
 			s.rpos = 0
@@ -82,4 +80,72 @@ func (s *source) Read(p []byte) (n int, err error) {
 	}
 
 	return
+}
+
+type Spec interface {
+	Name() string
+	Describe() string
+	Size() int64
+	Generate() Source
+}
+
+var InvalidSizeFormatErr = errors.New("sizes must be formated as an integer followed by an optional unit (e.g., 4KiB)")
+
+// NewSpec creates a Spec based on the provided description/size. If desc and size are both
+// defined, desc is used as the Spec name and size is parsed to determine the Int and Int64 values.
+// Optionally, the size may be embedded in a colon-delineated description (e.g., medium:256Ki)
+// and size left an empty string. This option is useful when parsing command-line arguments.
+//
+// Supported size units are the same as resource.Quantity. If no unit is specified, the unit is
+// assumed to be Bytes. InvalidSizeFormatErr is returned if the specified size is not in a
+// recognized format.
+//
+// If no error is return, the returned Spec will be valid.
+//
+// See Source.
+func NewSpec(desc, size string) (Spec, error) {
+
+	// Optionally split desc at ':' to set size
+	name := desc
+	if size == "" {
+		if d := strings.SplitN(desc, ":", 2); len(d) == 2 {
+			name = d[0]
+			size = d[1]
+		}
+	}
+
+	var qty resource.Quantity
+	if q, err := resource.ParseQuantity(size); err == nil {
+		qty = q
+	} else {
+		return nil, errors.Join(InvalidSizeFormatErr, err)
+	}
+
+	return spec{
+		name: name,
+		desc: desc,
+		size: qty.Value(),
+	}, nil
+}
+
+type spec struct {
+	name string
+	desc string
+	size int64
+}
+
+func (s spec) Name() string {
+	return s.name
+}
+
+func (s spec) Describe() string {
+	return s.desc
+}
+
+func (s spec) Size() int64 {
+	return s.size
+}
+
+func (s spec) Generate() Source {
+	return New(s.size)
 }

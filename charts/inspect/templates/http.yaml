@@ -1,0 +1,225 @@
+{{- if .Values.inspections.http.enabled }}
+apiVersion: konfirm.teamraft.com/v1beta1
+kind: TestSuite
+metadata:
+  name: {{ include "inspect.httpName" . }}
+  labels:
+    {{- include "inspect.labels" . | nindent 4 }}
+{{- with .Values.inspections.http }}
+spec:
+  {{- if or .when.cron .when.helmRelease }}
+  when:
+    {{- if .when.cron }}
+    cron: {{ .when.cron | quote }}
+    {{- end }}
+    {{- if .when.helmRelease }}
+    helmRelease: {{ .when.helmRelease }}
+    {{- end }}
+  {{- end }}
+  runAs: {{ .runAs }}
+  historyLimit: {{ .historyLimit }}
+  template:
+    spec:
+      retentionPolicy: {{ .retentionPolicy }}
+{{- end }}
+      tests:
+        - description: simple http requests are successful
+          template:
+            metadata:
+              {{- if or .Values.podAnnotations .Values.inspections.http.podAnnotations }}
+              annotations:
+                {{- with .Values.podAnnotations }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+                {{- with .Values.inspections.http.podAnnotations }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+              {{- end }}
+              labels:
+                {{- include "inspect.labels" . | nindent 16 }}
+                {{- with .Values.podLabels }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+            spec:
+              {{- with .Values.imagePullSecrets }}
+              imagePullSecrets:
+                {{- toYaml . | nindent 8 }}
+              {{- end }}
+              {{- if or .Values.inspections.http.serviceAccount.create .Values.inspections.http.serviceAccount.fullnameOverride }}
+              serviceAccountName: {{ default (include "inspect.httpName" . ) .Values.inspections.http.serviceAccount.fullnameOverride }}
+              {{- else }}
+              automountServiceAccountToken: false
+              {{- end }}
+              securityContext:
+                {{- toYaml .Values.podSecurityContext | nindent 16 }}
+              containers:
+                - name: konfirm-http
+                  image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+                  args:
+                    - --healthz
+                    - "0.0.0.0:8080"
+                    - --log-format
+                    - {{ default .Values.logging.format .Values.inspections.http.logging.format }}
+                    - --log-level
+                    - {{ default .Values.logging.level .Values.inspections.http.logging.level }}
+                    {{- if .Values.monitoring.gateway }}
+                    - --metrics-gateway
+                    - {{ .Values.monitoring.gateway | quote }}
+                    - --metrics-instance
+                    - {{ printf "%s%s" .Values.inspections.http.monitoring.instancePrefix "http_ping" }}
+                    - --metrics-job
+                    - {{ default (include "inspect.httpName" . | replace "-" "_" | quote) .Values.inspections.http.monitoring.job }}
+                    {{- end }}
+                    - http
+                    - ping
+                    - {{ default (printf "http://%s.%s" (include "inspect.httpServerName" .) .Release.Namespace) .Values.inspections.http.serverUrlOverride | quote }}
+                  imagePullPolicy: {{ .Values.image.pullPolicy }}
+                  securityContext:
+                    {{- toYaml .Values.securityContext | nindent 20 }}
+                  ports:
+                    - name: http-probes
+                      containerPort: 8080
+                  livenessProbe:
+                    httpGet:
+                      path: /
+                      port: http-probes
+                  resources:
+                    {{- toYaml .Values.inspections.http.resources | nindent 20 }}
+                  {{- if or (not ( .Values.volumeMounts | empty)) (not ( .Values.inspections.http.volumeMounts | empty)) }}
+                  volumeMounts:
+                    {{- with .Values.volumeMounts }}
+                    {{- toYaml . | nindent 20 }}
+                    {{- end }}
+                    {{- with .Values.inspections.http.volumeMounts }}
+                    {{- toYaml . | nindent 20 }}
+                    {{- end }}
+                  {{- end }}
+              {{- if or (not ( .Values.volumes | empty)) (not ( .Values.inspections.http.volumes | empty)) }}
+              volumes:
+                {{- with .Values.volumes }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+                {{- with .Values.inspections.http.volumes }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+              {{- end }}
+              {{- with (default .Values.nodeSelector .Values.inspections.http.nodeSelector) }}
+              nodeSelector:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- with (default .Values.affinity .Values.inspections.http.affinity) }}
+              affinity:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- with (default .Values.tolerations .Values.inspections.http.tolerations) }}
+              tolerations:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+        - description: larger http requests and responses are successful
+          template:
+            metadata:
+                    {{- if or .Values.podAnnotations .Values.inspections.http.podAnnotations }}
+              annotations:
+                      {{- with .Values.podAnnotations }}
+                      {{- toYaml . | nindent 16 }}
+                      {{- end }}
+                      {{- with .Values.inspections.http.podAnnotations }}
+                      {{- toYaml . | nindent 16 }}
+                      {{- end }}
+                    {{- end }}
+              labels:
+                      {{- include "inspect.labels" . | nindent 16 }}
+                      {{- with .Values.podLabels }}
+                      {{- toYaml . | nindent 16 }}
+                      {{- end }}
+            spec:
+                    {{- with .Values.imagePullSecrets }}
+              imagePullSecrets:
+                      {{- toYaml . | nindent 8 }}
+                    {{- end }}
+                    {{- if or .Values.inspections.http.serviceAccount.create .Values.inspections.http.serviceAccount.fullnameOverride }}
+              serviceAccountName: {{ default (include "inspect.httpName" . ) .Values.inspections.http.serviceAccount.fullnameOverride }}
+                    {{- else }}
+              automountServiceAccountToken: false
+                    {{- end }}
+              securityContext:
+                      {{- toYaml .Values.podSecurityContext | nindent 16 }}
+              containers:
+                - name: konfirm-http
+                  image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+                  args:
+                    - --healthz
+                    - "0.0.0.0:8080"
+                    - --log-format
+                    - {{ default .Values.logging.format .Values.inspections.http.logging.format }}
+                    - --log-level
+                    - {{ default .Values.logging.level .Values.inspections.http.logging.level }}
+                          {{- if .Values.monitoring.gateway }}
+                    - --metrics-gateway
+                    - {{ .Values.monitoring.gateway | quote }}
+                    - --metrics-instance
+                    - {{ printf "%s%s" .Values.inspections.http.monitoring.instancePrefix "http_replay" }}
+                    - --metrics-job
+                    - {{ default (include "inspect.httpName" . | replace "-" "_" | quote) .Values.inspections.http.monitoring.job }}
+                          {{- end }}
+                    - http
+                    - replay
+                    - {{ default (printf "http://%s.%s" (include "inspect.httpServerName" .) .Release.Namespace) .Values.inspections.http.serverUrlOverride | quote }}
+                    {{- toYaml .Values.inspections.http.replays | nindent 20 }}
+                  imagePullPolicy: {{ .Values.image.pullPolicy }}
+                  securityContext:
+                    {{- toYaml .Values.securityContext | nindent 20 }}
+                  ports:
+                    - name: http-probes
+                      containerPort: 8080
+                  livenessProbe:
+                    httpGet:
+                      path: /
+                      port: http-probes
+                  resources:
+                          {{- toYaml .Values.inspections.http.resources | nindent 20 }}
+                        {{- if or (not ( .Values.volumeMounts | empty)) (not ( .Values.inspections.http.volumeMounts | empty)) }}
+                  volumeMounts:
+                          {{- with .Values.volumeMounts }}
+                          {{- toYaml . | nindent 20 }}
+                          {{- end }}
+                          {{- with .Values.inspections.http.volumeMounts }}
+                          {{- toYaml . | nindent 20 }}
+                          {{- end }}
+                        {{- end }}
+                    {{- if or (not ( .Values.volumes | empty)) (not ( .Values.inspections.http.volumes | empty)) }}
+              volumes:
+                      {{- with .Values.volumes }}
+                      {{- toYaml . | nindent 16 }}
+                      {{- end }}
+                      {{- with .Values.inspections.http.volumes }}
+                      {{- toYaml . | nindent 16 }}
+                      {{- end }}
+                    {{- end }}
+                    {{- with (default .Values.nodeSelector .Values.inspections.http.nodeSelector) }}
+              nodeSelector:
+                      {{- toYaml . | nindent 16 }}
+                    {{- end }}
+                    {{- with (default .Values.affinity .Values.inspections.http.affinity) }}
+              affinity:
+                      {{- toYaml . | nindent 16 }}
+                    {{- end }}
+                    {{- with (default .Values.tolerations .Values.inspections.http.tolerations) }}
+              tolerations:
+                      {{- toYaml . | nindent 16 }}
+                    {{- end }}
+{{- end }}
+---
+{{- if .Values.inspections.http.serviceAccount.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ default (include "inspect.httpName" .) .Values.inspections.http.serviceAccount.fullnameOverride }}
+  labels:
+    {{- include "inspect.labels" . | nindent 4 }}
+  {{- with .Values.inspections.http.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+automountServiceAccountToken: false
+{{- end }}

@@ -1,0 +1,227 @@
+
+image:
+  repository: ghcr.io/raft-tech/konfirm/inspections
+  pullPolicy: IfNotPresent
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+podAnnotations: {}
+podLabels: {}
+podSecurityContext: {}
+securityContext:
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1001
+
+# Additional volumes on the Test PodSpecs
+volumes: []
+# - name: foo
+#   secret:
+#     secretName: mysecret
+#     optional: false
+
+# Additional volumeMounts on the Test PodSpecs
+volumeMounts: []
+# - name: foo
+#   mountPath: "/etc/foo"
+#   readOnly: true
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+logging:
+  format: "json"
+  level: "INFO"
+
+monitoring:
+  gateway: ""
+
+inspections:
+
+  http:
+
+    enabled: true
+
+    when:
+      cron: "* * * * *"
+      helmRelease: ""
+
+    runAs: ""
+    historyLimit: 3
+
+    retentionPolicy: OnFailure
+
+    replays:
+      # The default maximum replay request size is 128Mi. Requests tha exceed the configured max
+      # request size will fail.
+      - "small:1Ki"
+      - "medium:64Ki"
+
+    monitoring:
+      job: ""
+      instancePrefix: ""
+
+    serverUrlOverride: ""
+
+    serviceAccount:
+      create: true
+      fullnameOverride: ""
+      # annotations: {}
+
+    # podAnnotations: {}
+    # podLabels: {}
+
+    resources: {}
+    #   limits:
+    #     cpu: 100m
+    #     memory: 128Mi
+    #   requests:
+    #     cpu: 100m
+    #     memory: 128Mi
+
+    # Additional volumes on the Test PodSpecs
+    volumes: []
+    #  - name: foo
+    #    secret:
+    #      secretName: mysecret
+    #      optional: false
+
+    # Additional volumeMounts on the Test PodSpecs
+    volumeMounts: []
+    #  - name: foo
+    #    mountPath: "/etc/foo"
+    #    readOnly: true
+
+    # nodeSelector: {}
+
+    # tolerations: []
+
+    # affinity: {}
+
+    logging: {}
+      # format: "json"
+      # level: "INFO"
+
+    server:
+
+      enabled: true
+
+      maxReplayRequestSize: "128Mi"
+
+      serviceAccount:
+        create: true
+        fullnameOverride: ""
+        # annotations: {}
+
+      # podAnnotations: {}
+      # podLabels: {}
+
+      resources: {}
+      #   limits:
+      #     cpu: 100m
+      #     memory: 128Mi
+      #   requests:
+      #     cpu: 100m
+      #     memory: 128Mi
+
+      # Additional volumes on the Test PodSpecs
+      # volumes: []
+      #  - name: foo
+      #    secret:
+      #      secretName: mysecret
+      #      optional: false
+
+      # Additional volumeMounts on the Test PodSpecs
+      # volumeMounts: []
+      #  - name: foo
+      #    mountPath: "/etc/foo"
+      #    readOnly: true
+
+      # nodeSelector: {}
+
+      # tolerations: []
+
+      # affinity: {}
+
+  storage:
+
+    enabled: true
+
+    when:
+      cron: "0 * * * *"
+      helmRelease: ""
+
+    runAs: ""
+    historyLimit: 3
+
+    retentionPolicy: OnFailure
+
+    tests:
+      maxInstances: 3
+      specs:
+        - "tiny:8Ki"
+        - "small:512Ki"
+        - "medium:256Mi"
+        - "large:1.5Gi"
+
+    pvc:
+      create: true
+      nameOverride: ""
+      accessModes:
+        - ReadWriteOnce
+      # storageClass:
+      volumeSize: "10Gi"
+
+    monitoring:
+      job: ""
+      instancePrefix: ""
+
+    serverUrlOverride: ""
+
+    serviceAccount:
+      create: true
+      fullnameOverride: ""
+      # annotations: {}
+
+    # podAnnotations: {}
+    # podLabels: {}
+
+    resources: { }
+    #   limits:
+    #     cpu: 100m
+    #     memory: 128Mi
+    #   requests:
+    #     cpu: 100m
+    #     memory: 128Mi
+
+    # Additional volumes on the Test PodSpecs
+    volumes: [ ]
+    #  - name: foo
+    #    secret:
+    #      secretName: mysecret
+    #      optional: false
+
+    # Additional volumeMounts on the Test PodSpecs
+    volumeMounts: [ ]
+    #  - name: foo
+    #    mountPath: "/etc/foo"
+    #    readOnly: true
+
+    # nodeSelector: {}
+
+    # tolerations: []
+
+    # affinity: {}
+
+    logging: { }
+    # format: "json"
+    # level: "INFO"

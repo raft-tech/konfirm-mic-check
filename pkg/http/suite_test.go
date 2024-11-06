@@ -15,7 +15,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package mic
+package http
 
 import (
 	"testing"
@@ -26,14 +26,15 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-func TestMic(t *testing.T) {
+func TestHttp(t *testing.T) {
 
 	SetServerLogger(zap.New(zapcore.NewCore(
 		zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig()),
 		zapcore.AddSync(GinkgoWriter),
 		zapcore.LevelOf(zapcore.DebugLevel),
-	)).Named("mic"))
+	)).Named("http"))
 
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Mic Test")
+	suiteCfg, reportCfg := GinkgoConfiguration()
+	RunSpecs(t, "HTTP Inspection", suiteCfg, reportCfg)
 }

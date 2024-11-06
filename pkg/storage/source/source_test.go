@@ -131,3 +131,19 @@ var _ = Describe("Source", func() {
 		Expect(hex.EncodeToString(digest.Sum(nil))).To(Equal(expectedString))
 	})
 })
+
+var _ = Describe("SourceSpec", func() {
+
+	DescribeTable("Parses specs as expected", func(desc string, size string, expectedName string, expectedSize int64) {
+		spec, err := NewSpec(desc, size)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(spec.Describe()).To(Equal(desc))
+		Expect(spec.Name()).To(Equal(expectedName))
+		Expect(spec.Size()).To(Equal(expectedSize))
+	},
+		Entry("Whole Ki", "medium:4Ki", "", "medium", int64(4096)),
+		Entry("Fractional Ki", "small:0.5Ki", "", "small", int64(512)),
+		Entry("Bytes", "tiny:128", "", "tiny", int64(128)),
+		Entry("Split", "large", "2.5G", "large", int64(2_500_000_000)),
+	)
+})

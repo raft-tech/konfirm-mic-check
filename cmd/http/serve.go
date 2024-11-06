@@ -15,34 +15,71 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package mic
+package http
 
 import (
 	"context"
 	"errors"
-	"net/http"
+	gohttp "net/http"
 	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/raft-tech/konfirm-inspections/internal/cli"
+	"github.com/raft-tech/konfirm-inspections/internal/healthz"
 	"github.com/raft-tech/konfirm-inspections/internal/logging"
-	"github.com/raft-tech/konfirm-inspections/pkg/mic"
+	"github.com/raft-tech/konfirm-inspections/pkg/http"
+)
+
+var (
+	serverAddr       string
+	maxReplayRequest string
 )
 
 func serve(cmd *cobra.Command, _ []string) (err error) {
 
 	logger := logging.NewLogger(cmd.OutOrStdout())
-	mic.SetServerLogger(logger)
 
-	server := http.Server{
-		Addr:    serverAddr,
-		Handler: mic.NewHandler(),
+	// Start healthz server if set
+	ready := func(_ bool) {}
+	if addr, _ := cmd.Flags().GetString(healthz.ListenFlag); addr != "" {
+		logger.Debug("starting healthz server", zap.String("address", addr))
+		if probes, err := healthz.ListenAndServe(cmd.Context(), addr, func(err error) {
+			logger.Error("error serving http probes", zap.Error(err))
+		}); err == nil {
+			ready = probes.Ready
+			logger.Info("healthz started", zap.String("address", addr))
+		} else {
+			logger.Error("error starting http probe server", zap.Error(err))
+		}
 	}
 
+	// Configure and the server
+	http.SetServerLogger(logger)
+
+	if qty, err := resource.ParseQuantity(maxReplayRequest); err != nil {
+		return cli.Wrap(2, errors.Join(errors.New("error parsing max-replay"), err))
+	} else if i, ok := qty.AsInt64(); ok {
+		if i > 536870912 { // If greater than 512Mi
+			logger.Warn("max-replay is set to a high number; large replay requests may result in out-of-memory errors")
+		}
+		http.MaxReplayRequestSize = i
+	} else {
+		return cli.ErrorF(2, "max-replay value is too large")
+	}
+
+	server := gohttp.Server{
+		Addr:    serverAddr,
+		Handler: http.NewHandler(),
+	}
+
+	// Start
 	done := make(chan error)
 	go func(out chan<- error) {
 		logger.Info("starting server", zap.String("address", serverAddr))
+		ready(true)
 		out <- server.ListenAndServe()
 		close(out)
 	}(done)
@@ -54,6 +91,7 @@ func serve(cmd *cobra.Command, _ []string) (err error) {
 
 		// Perform shutdown
 		logger.Info("initiating shutdown")
+		ready(false)
 		ctx, cancel := context.WithTimeoutCause(context.Background(), 10*time.Second, errors.New("server shutdown timed out"))
 		defer cancel()
 		if err = server.Shutdown(ctx); err == nil {
@@ -64,7 +102,7 @@ func serve(cmd *cobra.Command, _ []string) (err error) {
 
 		// Drain the done channel
 		for e := range done {
-			if !errors.Is(e, http.ErrServerClosed) {
+			if !errors.Is(e, gohttp.ErrServerClosed) {
 				logger.Error("a server error occurred", zap.Error(e))
 				if err == nil {
 					err = e
@@ -74,7 +112,7 @@ func serve(cmd *cobra.Command, _ []string) (err error) {
 
 	// Server cli
 	case e := <-done:
-		if !errors.Is(e, http.ErrServerClosed) {
+		if !errors.Is(e, gohttp.ErrServerClosed) {
 			logger.Error("a server error occurred", zap.Error(e))
 			err = e
 		}
