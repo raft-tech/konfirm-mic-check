@@ -15,7 +15,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package mic
+package http
 
 import (
 	"bytes"
@@ -38,7 +38,7 @@ var _ = Describe("Handlers", func() {
 		res := rec.Result()
 
 		Expect(res).To(HaveHTTPStatus(http.StatusOK))
-		Expect(res).To(HaveHTTPBody([]byte("Mic mic. One two. One two.")))
+		Expect(res).To(HaveHTTPBody([]byte(micCheck)))
 	})
 
 	It("POST /replay", func() {

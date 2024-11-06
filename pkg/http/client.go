@@ -15,12 +15,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package mic
+package http
 
 import (
 	"context"
 	"crypto"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -30,6 +31,9 @@ import (
 
 	"github.com/raft-tech/konfirm-inspections/internal/logging"
 )
+
+var HttpStatusCodeErr = errors.New("the server responded with an unsuccessful HTTP status code")
+var ExceedsMaxRequestSizeErr = errors.New("request exceeded the server's maximum permitted size")
 
 type Client interface {
 	Check(ctx context.Context) (bool, error)
@@ -110,10 +114,26 @@ func (c *client) ReplayN(ctx context.Context, body io.Reader, len int64) (bool, 
 
 	// Validate the response headers
 	if res.StatusCode != http.StatusOK {
-		return false, nil
+		err := HttpStatusCodeErr
+		if res.StatusCode == http.StatusRequestEntityTooLarge {
+			err = ExceedsMaxRequestSizeErr
+			logger.Error("replay request failed because it exceed the server's maximum request size")
+		} else {
+			logger.Error("replay request failed with an non-200 HTTP status code", zap.Int("statusCode", res.StatusCode))
+		}
+		return false, err
 	} else if res.ContentLength != req.ContentLength {
+		logger.Error(
+			"replay request failed because the response content-length did not match the request length",
+			zap.Int64("reqContentLength", req.ContentLength),
+			zap.Int64("resContentLength", res.ContentLength),
+		)
 		return false, nil
 	} else if res.Header.Get(contentType) != "application/octet-stream" {
+		logger.Error(
+			"replay request failed because the response content-type was not 'application/octet-stream",
+			zap.String("resContentType", res.Header.Get(contentType)),
+		)
 		return false, nil
 	}
 

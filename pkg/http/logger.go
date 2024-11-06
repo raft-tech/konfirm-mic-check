@@ -15,36 +15,17 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package mic
+package http
 
 import (
-	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
-var serverAddr string
+var logger = zap.NewNop()
 
-func New() *cobra.Command {
-
-	mic := &cobra.Command{
-		Short:         "Verify network connectivity",
-		SilenceErrors: true,
-		SilenceUsage:  true,
-		Use:           "mic COMMAND",
+func SetServerLogger(l *zap.Logger) {
+	if l == nil {
+		panic("logger must not be nil")
 	}
-
-	server := &cobra.Command{
-		RunE:  serve,
-		Short: "starts the HTTP server",
-		Use:   "serve [--addr ADDRESS]",
-	}
-	server.PersistentFlags().StringVarP(&serverAddr, "addr", "l", ":8080", "the address the server will listen on")
-
-	check := &cobra.Command{
-		RunE:  client,
-		Short: "checks the server at the specified URL",
-		Use:   "check URL",
-	}
-
-	mic.AddCommand(server, check)
-	return mic
+	logger = l
 }

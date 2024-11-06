@@ -39,12 +39,12 @@ var (
 	logFormat = "console"
 )
 
-func RegisterPFlags(set *pflag.FlagSet) {
+func RegisterCmdFlags(set *pflag.FlagSet) {
 	set.StringVar(&logLevel, LogLevelFlag, logLevel, "sets the log level to one of: DEBUG, INFO, WARN, ERROR")
 	set.StringVar(&logFormat, LogFormatFlag, logFormat, "sets the log format to one of: console, json")
 }
 
-func RegisterGoFlags(set *flag.FlagSet) {
+func RegisterTestFlags(set *flag.FlagSet) {
 	set.StringVar(&logLevel, TestLogLevelFlag, logLevel, "sets the log level to one of: DEBUG, INFO, WARN, ERROR")
 	set.StringVar(&logFormat, TestLogFormatFlag, logFormat, "sets the log format to one of: console, json")
 }

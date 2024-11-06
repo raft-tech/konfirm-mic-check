@@ -1,0 +1,144 @@
+{{ if .Values.inspections.http.server.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "inspect.httpServerName" . }}
+  labels:
+    {{- include "inspect.labels" . | nindent 4 }}
+    app.kubernetes.io/component: "http-server"
+spec:
+  selector:
+    matchLabels:
+      {{- include "inspect.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: "http-server"
+  template:
+    metadata:
+      {{- if or .Values.podAnnotations .Values.inspections.http.server.podAnnotations }}
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.inspections.http.server.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      labels:
+        {{- include "inspect.labels" . | nindent 8 }}
+        app.kubernetes.io/component: "http-server"
+        {{- with .Values.inspections.http.server.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if or .Values.inspections.http.server.serviceAccount.create .Values.inspections.http.server.serviceAccount.fullnameOverride }}
+      serviceAccountName: {{ default (include "inspect.httpServerName" . ) .Values.inspections.http.server.serviceAccount.fullnameOverride }}
+      {{- else }}
+      automountServiceAccountToken: false
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          args:
+            - --healthz
+            - "0.0.0.0:8081"
+            - --log-format
+            - {{ default .Values.logging.format .Values.inspections.http.logging.format }}
+            - --log-level
+            - {{ default .Values.logging.level .Values.inspections.http.logging.level }}
+            - http
+            - serve
+            - --max-replay
+            - {{ .Values.inspections.http.server.maxReplayRequestSize }}
+            - -l
+            - ":8080"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: http-metrics
+              containerPort: 8081
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http-metrics
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http-metrics
+          resources:
+            {{- toYaml .Values.inspections.http.server.resources | nindent 12 }}
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- with .Values.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.inspections.http.server.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+      {{- if or (not ( .Values.volumes | empty)) (not ( .Values.inspections.http.server.volumes | empty)) }}
+      volumes:
+        {{- with .Values.volumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.inspections.http.server.volumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- with (default .Values.nodeSelector .Values.inspections.http.server.nodeSelector) }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with (default .Values.affinity .Values.inspections.http.server.affinity) }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with (default .Values.tolerations .Values.inspections.http.server.tolerations) }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "inspect.httpServerName" . }}
+  labels:
+    {{- include "inspect.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: 8080
+      targetPort: http-metrics
+      protocol: TCP
+      name: http-metrics
+  selector:
+    {{- include "inspect.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: "http-server"
+---
+{{- if .Values.inspections.http.server.serviceAccount.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ default (include "inspect.httpServerName" .) .Values.inspections.http.server.serviceAccount.fullnameOverride }}
+  labels:
+    {{- include "inspect.labels" . | nindent 4 }}
+  {{- with .Values.inspections.http.server.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+automountServiceAccountToken: false
+{{- end }}
+{{- end }}

@@ -42,6 +42,8 @@ jobs:
     permissions:
       contents: read
       security-events: write
+    env:
+      VERSION: latest
     steps:
       - name: Checkout
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -58,7 +60,7 @@ jobs:
         with:
           scan-type: 'image'
           scanners: 'vuln'
-          image-ref: 'ghcr.io/raft-tech/konfirm/inspections:latest'
+          image-ref: 'ghcr.io/raft-tech/konfirm/inspections:${{ env.VERSION }}'
           ignore-unfixed: 'true'
           limit-severities-for-sarif: true
           output: 'trivy-results.sarif'

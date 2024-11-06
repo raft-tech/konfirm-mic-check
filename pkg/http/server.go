@@ -15,9 +15,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package mic
+package http
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,9 +27,13 @@ import (
 )
 
 const (
-	micCheck      = "Mic mic. One two. One two."
+	micCheck      = "Mic check. One two. One two."
 	contentType   = "Content-Type"
 	contentLength = "Content-Length"
+)
+
+var (
+	MaxReplayRequestSize int64 = 128 * 1024 * 1024 // 128 MiB
 )
 
 func NewHandler() http.Handler {
@@ -76,7 +81,27 @@ func replay(res http.ResponseWriter, req *http.Request) {
 
 	// Only support POST requests
 	if req.Method != http.MethodPost {
+		logger.Info("unsupported request", zap.String("method", req.Method))
 		res.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Request size must not exceed MaxReplayRequestSize
+	if m := MaxReplayRequestSize; req.ContentLength > m {
+		logger.Warn("request size exceeds maximum", zap.Int64("size", req.ContentLength), zap.Int64("maxSize", m))
+		res.WriteHeader(http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	// Write request body into buffer
+	buf := &bytes.Buffer{}
+	if n, err := buf.ReadFrom(io.LimitReader(req.Body, req.ContentLength)); err != nil {
+		logger.Error("error reading request body", zap.Error(err))
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	} else if n != req.ContentLength {
+		logger.Error("request content did not match expected size", zap.Int64("size", n), zap.Int64("expected", req.ContentLength))
+		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
@@ -87,14 +112,10 @@ func replay(res http.ResponseWriter, req *http.Request) {
 		headers.Set(contentType, ct)
 	}
 
-	// Echo the request body
-	for i, j := int64(0), req.ContentLength; i < req.ContentLength; {
-		n, err := io.CopyN(res, req.Body, j)
-		if err != nil {
-			logger.Error("error handling request", zap.Error(err))
-			return
-		}
-		i += n
-		j -= n // Reduce max read bytes by previously read bytes
+	// Write the response body
+	if _, err := io.Copy(res, buf); err != nil {
+		logger.Error("error writing response body", zap.Error(err))
+	} else {
+		logger.Info("response sent successfully")
 	}
 }

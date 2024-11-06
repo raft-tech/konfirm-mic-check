@@ -1,5 +1,5 @@
 *.iml
-
+/.cache
 /.idea
 /bin
 /cover.out

@@ -1,0 +1,152 @@
+{{- if .Values.inspections.storage.enabled }}
+apiVersion: konfirm.teamraft.com/v1beta1
+kind: TestSuite
+metadata:
+  name: {{ include "inspect.storageName" . }}
+  labels:
+    {{- include "inspect.labels" . | nindent 4 }}
+{{- with .Values.inspections.storage }}
+spec:
+  {{- if or .when.cron .when.helmRelease }}
+  when:
+    {{- if .when.cron }}
+    cron: {{ .when.cron | quote }}
+    {{- end }}
+    {{- if .when.helmRelease }}
+    helmRelease: {{ .when.helmRelease }}
+    {{- end }}
+  {{- end }}
+  runAs: {{ .runAs }}
+  historyLimit: {{ .historyLimit }}
+  template:
+    spec:
+      retentionPolicy: {{ .retentionPolicy }}
+{{- end }}
+      tests:
+        - description: tests filesystem storage
+          template:
+            metadata:
+              {{- if or .Values.podAnnotations .Values.inspections.storage.podAnnotations }}
+              annotations:
+                {{- with .Values.podAnnotations }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+                {{- with .Values.inspections.storage.podAnnotations }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+              {{- end }}
+              labels:
+                {{- include "inspect.labels" . | nindent 16 }}
+                {{- with .Values.podLabels }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+            spec:
+              {{- with .Values.imagePullSecrets }}
+              imagePullSecrets:
+                {{- toYaml . | nindent 8 }}
+              {{- end }}
+              {{- if or .Values.inspections.storage.serviceAccount.create .Values.inspections.storage.serviceAccount.fullnameOverride }}
+              serviceAccountName: {{ default (include "inspect.storageName" . ) .Values.inspections.storage.serviceAccount.fullnameOverride }}
+              {{- else }}
+              automountServiceAccountToken: false
+              {{- end }}
+              securityContext:
+                {{- toYaml .Values.podSecurityContext | nindent 16 }}
+              containers:
+                - name: konfirm-storage
+                  image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+                  args:
+                    - --healthz
+                    - "0.0.0.0:8080"
+                    - --log-format
+                    - {{ default .Values.logging.format .Values.inspections.storage.logging.format }}
+                    - --log-level
+                    - {{ default .Values.logging.level .Values.inspections.storage.logging.level }}
+                    {{- if .Values.monitoring.gateway }}
+                    - --metrics-gateway
+                    - {{ .Values.monitoring.gateway | quote }}
+                    - --metrics-instance
+                    - {{ printf "%s%s" .Values.inspections.storage.monitoring.instancePrefix "storage" }}
+                    - --metrics-job
+                    - {{ default (include "inspect.storageName" . | replace "-" "_" | quote) .Values.inspections.storage.monitoring.job }}
+                    {{- end }}
+                    - storage
+                    - --base-dir=/konfirm/data
+                    - --max-instances={{ .Values.inspections.storage.tests.maxInstances }}
+                    {{- toYaml .Values.inspections.storage.tests.specs | nindent 20 }}
+                  imagePullPolicy: {{ .Values.image.pullPolicy }}
+                  securityContext:
+                    {{- toYaml .Values.securityContext | nindent 20 }}
+                  ports:
+                    - name: http-probes
+                      containerPort: 8080
+                  livenessProbe:
+                    httpGet:
+                      path: /
+                      port: http-probes
+                  resources:
+                    {{- toYaml .Values.inspections.storage.resources | nindent 20 }}
+                  volumeMounts:
+                    - name: data
+                      mountPath: /konfirm/data
+                    {{- with .Values.volumeMounts }}
+                    {{- toYaml . | nindent 20 }}
+                    {{- end }}
+                    {{- with .Values.inspections.storage.volumeMounts }}
+                    {{- toYaml . | nindent 20 }}
+                    {{- end }}
+              volumes:
+                - name: data
+                  persistentVolumeClaim:
+                    claimName: {{ default ( include "inspect.storageName" . ) .Values.inspections.storage.pvc.nameOverride }}
+                {{- with .Values.volumes }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+                {{- with .Values.inspections.storage.volumes }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+              {{- with (default .Values.nodeSelector .Values.inspections.storage.nodeSelector) }}
+              nodeSelector:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- with (default .Values.affinity .Values.inspections.storage.affinity) }}
+              affinity:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- with (default .Values.tolerations .Values.inspections.storage.tolerations) }}
+              tolerations:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+{{- end }}
+---
+{{- if .Values.inspections.storage.pvc.create }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ default (include "inspect.storageName" . ) .Values.inspections.storage.pvc.nameOverride }}
+  labels:
+    {{- include "inspect.labels" . | nindent 4 }}
+spec:
+  {{- with .Values.inspections.storage.pvc.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  accessModes:
+    {{- toYaml .Values.inspections.storage.pvc.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.inspections.storage.pvc.volumeSize }}
+{{- end }}
+---
+{{- if .Values.inspections.storage.serviceAccount.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ default (include "inspect.storageName" .) .Values.inspections.storage.serviceAccount.fullnameOverride }}
+  labels:
+    {{- include "inspect.labels" . | nindent 4 }}
+  {{- with .Values.inspections.storage.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+automountServiceAccountToken: false
+{{- end }}

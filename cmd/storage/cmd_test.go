@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"testing"
@@ -28,7 +29,15 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/ginkgo/v2/types"
 	. "github.com/onsi/gomega"
+
+	"github.com/raft-tech/konfirm-inspections/internal/healthz"
 )
+
+var probeAddr string
+
+func init() {
+	flag.CommandLine.StringVar(&probeAddr, "konfirm.probe-addr", "localhost:8080", "sets the listening address for probes during testing")
+}
 
 func TestStorageCommand(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -50,10 +59,17 @@ var _ = Describe("command", func() {
 
 		JustBeforeEach(func(ctx context.Context) {
 
-			jsonFile := fmt.Sprintf("%s/%s", GinkgoT().TempDir(), "runs.json")
-
+			// Create a cobra.Command and add flags from root used during testing
 			cmd := New()
-			cmd.SetArgs(append([]string{"--", "--ginkgo.json-report", jsonFile}, args...))
+			cmd.PersistentFlags().String(healthz.ListenFlag, probeAddr, "")
+
+			// Execute the command and capture the JSON report
+			jsonFile := fmt.Sprintf("%s/%s", GinkgoT().TempDir(), "runs.json")
+			cmd.SetArgs(append([]string{
+				"--" + healthz.ListenFlag, probeAddr,
+				"--",
+				"--ginkgo.json-report", jsonFile,
+			}, args...))
 			cmd.SetOut(&bytes.Buffer{})
 			cmd.SetErr(&bytes.Buffer{})
 			Expect(cmd.ExecuteContext(ctx)).To(Succeed())
