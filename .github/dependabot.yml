@@ -13,8 +13,16 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      all-actions:
+        patterns:
+          - "*"
   - package-ecosystem: "docker"
     directories:
       - "/"
     schedule:
       interval: "weekly"
+    groups:
+      all-images:
+        patterns:
+          - "*"
