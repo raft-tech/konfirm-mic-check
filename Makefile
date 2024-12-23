@@ -51,8 +51,8 @@ inspect:
 
 .PHONY: bin/konfirm-http
 bin/konfirm-http:
-	go test -c -o bin/konfirm-http ./inspections/http
+	go test -tags inspection -c -o bin/konfirm-http ./inspections/http
 
 .PHONY: bin/konfirm-storage
 bin/konfirm-storage:
-	go test -c -o bin/konfirm-storage ./inspections/storage
+	go test -tags inspection -c -o bin/konfirm-storage ./inspections/storage

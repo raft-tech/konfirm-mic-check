@@ -1,3 +1,6 @@
+//go:build inspection
+// +build inspection
+
 /*
  * Copyright (c) 2024 Raft, LLC
  *
