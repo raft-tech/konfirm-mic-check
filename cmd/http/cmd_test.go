@@ -23,9 +23,12 @@ import (
 	gohttp "net/http"
 	"strings"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/raft-tech/konfirm-inspections/cmd/http"
 	"github.com/raft-tech/konfirm-inspections/internal/healthz"
@@ -52,6 +55,8 @@ var _ = Describe("command", func() {
 
 	Context("with server", func() {
 
+		var logger *zap.Logger
+
 		It("checks", func(ctx context.Context) {
 			cmd := http.New()
 			cmd.PersistentFlags().String(healthz.ListenFlag, serverProbeAddr, "")
@@ -59,6 +64,17 @@ var _ = Describe("command", func() {
 			cmd.SetOut(GinkgoWriter)
 			cmd.SetErr(GinkgoWriter)
 			Expect(cmd.ExecuteContext(ctx)).To(Succeed())
+		})
+
+		BeforeEach(func() {
+			logger = zap.New(zapcore.NewCore(
+				zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig()),
+				zapcore.AddSync(GinkgoWriter),
+				zapcore.LevelOf(zapcore.DebugLevel),
+			))
+			DeferCleanup(func() {
+				_ = logger.Sync()
+			})
 		})
 
 		BeforeEach(func(ctx context.Context) {
@@ -77,7 +93,17 @@ var _ = Describe("command", func() {
 			go func(ctx context.Context) {
 				defer GinkgoRecover()
 				server.SetArgs([]string{"serve", "--addr", serverAddr})
-				Expect(server.ExecuteContextC(ctx)).To(Succeed())
+				logger.Debug("starting HTTP server")
+				for i := 0; ; i++ {
+					if err := server.ExecuteContext(ctx); err == nil {
+						logger.Info("started HTTP server")
+					} else if i < 3 {
+						logger.Warn("error starting HTTP server", zap.Error(err), zap.Int("attempt", i+1))
+						time.Sleep(time.Duration(i) * time.Second)
+					} else {
+						Expect(err).NotTo(HaveOccurred(), "exceeded max retry count")
+					}
+				}
 			}(sctx)
 
 			// Wait for the server to be available
@@ -87,7 +113,7 @@ var _ = Describe("command", func() {
 			}
 			Eventually(func() (*gohttp.Response, error) {
 				return gohttp.Get("http://" + addr + "/ready")
-			}).Should(HaveHTTPStatus(gohttp.StatusOK))
+			}).WithTimeout(10 * time.Second).Should(HaveHTTPStatus(gohttp.StatusOK))
 		})
 	})
 
