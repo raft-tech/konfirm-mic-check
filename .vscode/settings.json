@@ -1,0 +1,12 @@
+{
+    "go.testEnvVars": {
+        "PATH": "${env:PATH}:${workspaceFolder}/bin"
+    },
+    "go.testFlags": [
+        "--ginkgo.github-output"
+    ],
+    "sonarlint.connectedMode.project": {
+        "connectionId": "raft-tech",
+        "projectKey": "raft-tech_konfirm-inspect"
+    }
+}

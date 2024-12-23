@@ -1,0 +1,80 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "go: test",
+			"group": {
+				"kind": "test",
+				"isDefault": true
+			},
+			"type": "go",
+			"command": "test",
+			"args": ["./cmd/...", "./internal/...", "./pkg/..."],
+			"options": {
+				"env": {
+					"PATH": "${env:PATH}:${workspaceFolder}/bin"
+				}
+			},
+			"problemMatcher": [
+				"$go"
+			]
+		},
+		{
+			"label": "go: build inspections",
+			"detail": "Buils all Konfirm inspections required for testing",
+			"dependsOn": [
+				"go: build konfirm-http",
+				"go: build konfirm-storage"
+			],
+			"problemMatcher": [
+				"$go"
+			]
+		},
+		{
+			"label": "go: build konfirm-http",
+			"detail": "Builds konfirm-http, which is required for testing",
+			"group": "build",
+			"hide": true,
+			"type": "go",
+			"command": "test",
+			"args": [
+				"-tags",
+				"inspection",
+				"-c",
+				"-o",
+				"bin/konfirm-http",
+				"./inspections/http"
+			],
+			"problemMatcher": [
+				"$go"
+			],
+			"presentation": {
+				"reveal": "silent",
+				"revealProblems": "onProblem",
+			}
+		},
+		{
+			"label": "go: build konfirm-storage",
+			"detail": "Builds konfirm-storage, which is required for testing",
+			"group": "build",
+			"hide": true,
+			"type": "go",
+			"command": "test",
+			"args": [
+				"-tags",
+				"inspection",
+				"-c",
+				"-o",
+				"bin/konfirm-storage",
+				"./inspections/storage"
+			],
+			"problemMatcher": [
+				"$go"
+			],
+			"presentation": {
+				"reveal": "silent",
+				"revealProblems": "onProblem",
+			}
+		}
+	]
+}
